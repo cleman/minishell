@@ -5,12 +5,15 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <string.h>
 
 int main(int argc, char **argv) {
-    char *argv_execv[2];
-    argv_execv[1] = NULL;
+    char *argv_execv[10];
 
     char entry[50];
+
+    char *strToken;
+    int i;
 
     while (strcmp(entry, "exit\0") != 0) {
         // Affichage de l'invite de command
@@ -24,11 +27,20 @@ int main(int argc, char **argv) {
             entry[len - 1] = '\0';
         }
 
+        strToken = strtok(entry, " ");
+        argv_execv[0] = strToken;
+        i = 1;
+        while (strToken != NULL) {
+            strToken = strtok(NULL, " ");
+            argv_execv[i] = strToken;
+            i++;
+        }
+        argv_execv[i] = NULL;
+
         if (strcmp(entry,"exit\0") != 0) {
-            argv_execv[0] = entry;
 
             if (fork() == 0) {
-                if (execvp(entry, argv_execv) == -1) perror("Erreur lors du execv");
+                if (execvp(argv_execv[0], argv_execv) == -1) perror("Erreur lors du execv");
                 exit(0);
             }
         }
