@@ -7,6 +7,8 @@
 #include <sys/wait.h>
 #include <string.h>
 #include "function.h"
+#include <sys/stat.h>
+#include <fcntl.h>
 
 int main(int argc, char **argv) {
     char *argv_execv[10];
@@ -17,7 +19,7 @@ int main(int argc, char **argv) {
     char *strToken;
     int i;
     int test;
-    int back_flag;
+    int back_flag, chevron_flag;
 
     while (strcmp(argv_execv[0], "exit\0") != 0) {
         // Affichage de l'invite de commande
@@ -55,11 +57,11 @@ int main(int argc, char **argv) {
             argv_execv[i] = NULL;
 
             back_flag = back(argv_execv, i-1);
-            printf("flag : %d\n", back_flag);
+            chevron_flag = chevron(argv_execv, i-1);
 
             if (strcmp(argv_execv[0],"exit\0") != 0 && len > 1) {
 
-                if (strcmp(argv_execv[0],"cd") != 0 && strcmp(argv_execv[0],"pwd") != 0) {
+                if (strcmp(argv_execv[0],"cd") != 0 && strcmp(argv_execv[0],"pwd") != 0 && chevron_flag == -1) {
                     if (fork() == 0) {
                         if (execvp(argv_execv[0], argv_execv) == -1) perror("Erreur lors du execv");
                         exit(0);
@@ -73,6 +75,19 @@ int main(int argc, char **argv) {
                     char buff[200];
                     getcwd(buff, sizeof buff);
                     printf("%s\n", buff);
+                }
+                else if (chevron_flag != -1) {
+                    int oldstdout = dup(STDOUT_FILENO);
+                    int fd = open(argv_execv[chevron_flag+1], O_WRONLY);
+                    dup2(fd, STDOUT_FILENO);
+                    close (fd);
+                    argv_execv[chevron_flag] = NULL;
+                    if (fork() == 0) {
+                        if (execvp(argv_execv[0], argv_execv) == -1) perror("Erreur lors du execv");
+                        exit(0);
+                    }
+                        wait(NULL);
+                        dup2(oldstdout, STDOUT_FILENO);                                        
                 }
             }
         }

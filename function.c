@@ -15,3 +15,10 @@ int back(char **argv_execv, int i) {
     }
     return 0;
 }
+
+int chevron(char **argv_execv, int i) {
+    for (int n = 0; n < i-1; n++) {
+        if (strcmp(">", argv_execv[n]) == 0) return n;
+    }
+    return -1;
+}
