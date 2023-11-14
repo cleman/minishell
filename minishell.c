@@ -1,6 +1,10 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/wait.h>
 
 int main(int argc, char **argv) {
     //if (argc != 2) return 0;
@@ -9,10 +13,9 @@ int main(int argc, char **argv) {
     char *argv_execv[2];
     argv_execv[1] = NULL;
 
-    printf("On est là\n");
     char entry[50];
 
-    while (strcmp(entry, "exit\n") != 1) {
+    while (strcmp(entry, "exit\0") != 0) {
         printf("$ ");
         fgets(entry, 50, stdin);
 
@@ -23,13 +26,17 @@ int main(int argc, char **argv) {
             entry[len - 1] = '\0';
         }
 
-        if (strcmp(entry,"ls") || strcmp(entry,"who")) {
+        if (strcmp(entry,"ls") == 0 || strcmp(entry,"who") == 0) {
             argv_execv[0] = entry;
             strcpy(path,"/bin/");
             strcat(path, entry);
 
-            if (execv(path, argv_execv) == -1) perror("Erreur lors du execv");
+            if (fork() == 0) {
+                if (execv(path, argv_execv) == -1) perror("Erreur lors du execv");
+                exit(0);
+            }
         }
+        wait(NULL);
     }
 
     return 0;
