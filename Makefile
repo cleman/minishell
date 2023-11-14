@@ -3,8 +3,8 @@ CFLAGS = -Wall
 
 all : $(EXEC)
 
-minishell: minishell.c
-	gcc $(CFLAGS) -o minishell minishell.c
+minishell: minishell.c function.c
+	gcc $(CFLAGS) -o minishell minishell.c function.c
 
 git:
 	git add .

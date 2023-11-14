@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <string.h>
+#include "function.h"
 
 int main(int argc, char **argv) {
     char *argv_execv[10];
@@ -16,11 +17,13 @@ int main(int argc, char **argv) {
     char *strToken;
     int i;
     int test;
+    int back_flag;
 
     while (strcmp(argv_execv[0], "exit\0") != 0) {
         // Affichage de l'invite de commande
         printf("$ ");
         fgets(entry, 50, stdin);
+        if (back_flag == 1) wait(NULL);
 
         // Modification caractère de fin
         size_t len = strlen(entry);
@@ -48,8 +51,11 @@ int main(int argc, char **argv) {
                 argv_execv[i] = strToken;
                 i++;
             }
-            //if (i == 2) len = 1;
+
             argv_execv[i] = NULL;
+
+            back_flag = back(argv_execv, i-1);
+            printf("flag : %d\n", back_flag);
 
             if (strcmp(argv_execv[0],"exit\0") != 0 && len > 1) {
 
@@ -58,7 +64,7 @@ int main(int argc, char **argv) {
                         if (execvp(argv_execv[0], argv_execv) == -1) perror("Erreur lors du execv");
                         exit(0);
                     }
-                    wait(NULL);
+                    if (back_flag == 0) wait(NULL);
                 }
                 else if (strcmp(argv_execv[0],"cd") == 0) {
                     chdir(argv_execv[1]);
