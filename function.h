@@ -3,5 +3,6 @@
 
 int back(char **argv_execv, int i);
 int chevron(char **argv_execv, int i);
+int pipef(char **argv_execv, int i);
 
 #endif

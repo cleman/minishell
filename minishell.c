@@ -2,24 +2,28 @@
 #include <string.h>
 #include <stdio.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <sys/wait.h>
-#include <string.h>
 #include "function.h"
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#define MAX_ENTRY_SIZE 50
+#define MAX_ENTRY_PARAM 50
+
 int main(int argc, char **argv) {
-    char *argv_execv[100];
+    char *argv_execv[MAX_ENTRY_PARAM];
     argv_execv[0] = "";
 
-    char entry[50];
+    char entry[MAX_ENTRY_SIZE];
 
     char *strToken;
     int i;
     int test;
-    int back_flag, chevron_flag;
+    int back_flag = -1, chevron_flag = -1 , pipe_flag = -1;
+
+    int oldstdout = dup(STDOUT_FILENO);     // Sauvegarde pour (dup2)^-1
+    int oldstdin = dup(STDIN_FILENO);
 
     while (strcmp(argv_execv[0], "exit\0") != 0) {
         // Affichage de l'invite de commande
@@ -60,10 +64,12 @@ int main(int argc, char **argv) {
             back_flag = back(argv_execv, i-1);
             // Test présence ">"
             chevron_flag = chevron(argv_execv, i-1);
+            // Test présence "|"
+            pipe_flag = pipef(argv_execv, i-1);
 
             if (strcmp(argv_execv[0],"exit\0") != 0 && len > 1) {
 
-                if (strcmp(argv_execv[0],"cd") != 0 && strcmp(argv_execv[0],"pwd") != 0 && chevron_flag == -1) {
+                if (strcmp(argv_execv[0],"cd") != 0 && strcmp(argv_execv[0],"pwd") != 0 && chevron_flag == -1 && pipe_flag == -1) {
                     if (fork() == 0) {
                         if (execvp(argv_execv[0], argv_execv) == -1) perror("Erreur lors du execv");
                         exit(0);
@@ -90,6 +96,63 @@ int main(int argc, char **argv) {
                     }
                     wait(NULL);
                     dup2(oldstdout, STDOUT_FILENO);                                        
+                }
+                // Présence d'un pipe
+                else if (pipe_flag != -1) {
+                    int pipefd[2];
+
+                    // Create a pipe
+                    if (pipe(pipefd) == -1) {
+                        perror("pipe");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    // Fork le premier processus
+                    if (fork() == 0) {
+                        close(pipefd[0]);   // Ferme lecture
+
+                        
+                        if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
+                            perror("Erreur durant dup2");
+                            exit(EXIT_FAILURE);
+                        }
+                        
+
+                        argv_execv[pipe_flag] = NULL;
+                        execvp(argv_execv[0], argv_execv);
+
+                        
+                        perror("Erreur durant execvp");
+                        exit(EXIT_FAILURE);
+                    }
+                    dup2(oldstdout, STDOUT_FILENO);
+                    wait(NULL);     // Wait premier enfant
+
+                    // Fork le second processus
+                    if (fork() == 0) {
+                        
+                        close(pipefd[1]);   // Ferme ecriture
+                         if (dup2(pipefd[0], STDIN_FILENO) == -1) {
+                            perror("Erreur durant dup2");
+                            exit(EXIT_FAILURE);
+                        }
+                        close(pipefd[0]);
+                        
+                        char **argv_after_pipe = argv_execv + pipe_flag + 1;    // Nouveau tableau qui commence après le pipe
+
+                        //printf("0 : %s\n", argv_after_pipe[0]);
+                        //printf("1 : %s\n", argv_after_pipe[1]);
+
+                        if (execvp(argv_after_pipe[0], argv_after_pipe) == -1) {
+                        perror("Erreur durant execvp");
+                        exit(EXIT_FAILURE);
+                    }
+                        
+                        exit(0);
+                    }
+                    close(pipefd[1]);
+                    dup2(oldstdin, STDIN_FILENO);
+                    wait(NULL);     // Wait second enfant
                 }
             }
         }
