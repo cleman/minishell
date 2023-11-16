@@ -151,7 +151,7 @@ int main(int argc, char **argv) {
                         exit(0);
                     }
                     close(pipefd[1]);
-                    dup2(oldstdin, STDIN_FILENO);
+                    dup2(oldstdin, STDIN_FILENO);   // redirection de l'entrée vers stdin
                     wait(NULL);     // Wait second enfant
                 }
             }
