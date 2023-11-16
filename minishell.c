@@ -11,7 +11,7 @@
 #include <fcntl.h>
 
 int main(int argc, char **argv) {
-    char *argv_execv[10];
+    char *argv_execv[100];
     argv_execv[0] = "";
 
     char entry[50];
@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
         }
 
         if (test == 1) {
-            // Découpage avec " "
+            // Découpage de l'entrée autour des espaces (" ")
             strToken = strtok(entry, " ");
             argv_execv[0] = strToken;
             i = 1;
@@ -53,10 +53,12 @@ int main(int argc, char **argv) {
                 argv_execv[i] = strToken;
                 i++;
             }
-
+            // Caractère de fin
             argv_execv[i] = NULL;
 
+            // Test présence "&""
             back_flag = back(argv_execv, i-1);
+            // Test présence ">"
             chevron_flag = chevron(argv_execv, i-1);
 
             if (strcmp(argv_execv[0],"exit\0") != 0 && len > 1) {
@@ -78,7 +80,7 @@ int main(int argc, char **argv) {
                 }
                 else if (chevron_flag != -1) {
                     int oldstdout = dup(STDOUT_FILENO);
-                    int fd = open(argv_execv[chevron_flag+1], O_WRONLY);
+                    int fd = open(argv_execv[chevron_flag+1], O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRGRP | S_IROTH);
                     dup2(fd, STDOUT_FILENO);
                     close (fd);
                     argv_execv[chevron_flag] = NULL;
@@ -86,8 +88,8 @@ int main(int argc, char **argv) {
                         if (execvp(argv_execv[0], argv_execv) == -1) perror("Erreur lors du execv");
                         exit(0);
                     }
-                        wait(NULL);
-                        dup2(oldstdout, STDOUT_FILENO);                                        
+                    wait(NULL);
+                    dup2(oldstdout, STDOUT_FILENO);                                        
                 }
             }
         }
