@@ -111,27 +111,30 @@ int main(int argc, char **argv) {
                     if (fork() == 0) {
                         close(pipefd[0]);   // Ferme lecture
 
-                        
+                        //STDOUT -> pipefd[1]
                         if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
                             perror("Erreur durant dup2");
                             exit(EXIT_FAILURE);
                         }
-                        
 
                         argv_execv[pipe_flag] = NULL;
-                        execvp(argv_execv[0], argv_execv);
+                        if (execvp(argv_execv[0], argv_execv) == 1) {  // Premiere fonction
+                            perror("Erreur durant execvp");
+                            exit(EXIT_FAILURE);
+                        }
 
-                        
                         perror("Erreur durant execvp");
                         exit(EXIT_FAILURE);
                     }
-                    dup2(oldstdout, STDOUT_FILENO);
+                    dup2(oldstdout, STDOUT_FILENO);     // redirection de la sortie vers stdout
                     wait(NULL);     // Wait premier enfant
 
                     // Fork le second processus
                     if (fork() == 0) {
                         
                         close(pipefd[1]);   // Ferme ecriture
+
+                        //STDIN -> pipefd[0]
                          if (dup2(pipefd[0], STDIN_FILENO) == -1) {
                             perror("Erreur durant dup2");
                             exit(EXIT_FAILURE);
@@ -140,13 +143,10 @@ int main(int argc, char **argv) {
                         
                         char **argv_after_pipe = argv_execv + pipe_flag + 1;    // Nouveau tableau qui commence après le pipe
 
-                        //printf("0 : %s\n", argv_after_pipe[0]);
-                        //printf("1 : %s\n", argv_after_pipe[1]);
-
-                        if (execvp(argv_after_pipe[0], argv_after_pipe) == -1) {
-                        perror("Erreur durant execvp");
-                        exit(EXIT_FAILURE);
-                    }
+                        if (execvp(argv_after_pipe[0], argv_after_pipe) == -1) {    // Deuxième fonction
+                            perror("Erreur durant execvp");
+                            exit(EXIT_FAILURE);
+                        }
                         
                         exit(0);
                     }
