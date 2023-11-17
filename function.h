@@ -1,8 +1,11 @@
 #ifndef FUNCTION
 #define FUNCTION
 
-int back(char **argv_execv, int i);
-int chevron(char **argv_execv, int i);
-int pipef(char **argv_execv, int i);
+void execvp_fct(char **argv_execv, int back_flag);
+int deleteTarget(char **argv_execv, int i, char *target);
+int test_caractere(char **argv_execv, int i, char *caractere);
+int test_entry_void(char entry[50]);
+void redirection(char **argv_execv, int chevron_flag);
+void pipe_fct(char **argv_execv, int pipe_flag);
 
 #endif

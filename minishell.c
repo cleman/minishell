@@ -20,10 +20,7 @@ int main(int argc, char **argv) {
     char *strToken;
     int i;
     int test;
-    int back_flag = -1, chevron_flag = -1 , pipe_flag = -1;
-
-    int oldstdout = dup(STDOUT_FILENO);     // Sauvegarde pour (dup2)^-1
-    int oldstdin = dup(STDIN_FILENO);
+    int back_flag = -1, chevron_flag = -1 , pipe_flag = -1, sc_flag = -1;   // sc = semicolon ";"
 
     while (strcmp(argv_execv[0], "exit\0") != 0) {
         // Affichage de l'invite de commande
@@ -39,13 +36,8 @@ int main(int argc, char **argv) {
             }
         }
 
-        test = 0;
-        for (int n = 0; n < len-1; n++) {
-            if (entry[n] != ' ') {
-                test = 1;
-                break;
-            }
-        }
+        // Test chaine vide
+        test = test_entry_void(entry);
 
         if (test == 1) {
             // Découpage de l'entrée autour des espaces (" ")
@@ -60,99 +52,54 @@ int main(int argc, char **argv) {
             // Caractère de fin
             argv_execv[i] = NULL;
 
-            // Test présence "&""
-            back_flag = back(argv_execv, i-1);
-            // Test présence ">"
-            chevron_flag = chevron(argv_execv, i-1);
-            // Test présence "|"
-            pipe_flag = pipef(argv_execv, i-1);
+            // Test présence "&", ">", "|", ";"
+            back_flag = deleteTarget(argv_execv, i-1, "&");
+            chevron_flag = test_caractere(argv_execv, i-1, ">");
+            pipe_flag = test_caractere(argv_execv, i-1, "|");
+            sc_flag = test_caractere(argv_execv, i-1, ";");
 
             if (strcmp(argv_execv[0],"exit\0") != 0 && len > 1) {
 
-                if (strcmp(argv_execv[0],"cd") != 0 && strcmp(argv_execv[0],"pwd") != 0 && chevron_flag == -1 && pipe_flag == -1) {
-                    if (fork() == 0) {
-                        if (execvp(argv_execv[0], argv_execv) == -1) perror("Erreur lors du execv");
-                        exit(0);
-                    }
-                    if (back_flag == 0) wait(NULL);
+                // Pas commande "cd", "pwd" (built-in), et pas "|", ">"
+                if (strcmp(argv_execv[0],"cd") != 0 && strcmp(argv_execv[0],"pwd") != 0 && chevron_flag == -1 && pipe_flag == -1 && sc_flag == -1) {
+                    execvp_fct(argv_execv, back_flag);
                 }
+                // Commande cd
                 else if (strcmp(argv_execv[0],"cd") == 0) {
                     chdir(argv_execv[1]);
                 }
+                // Commande pwd
                 else if (strcmp(argv_execv[0],"pwd") == 0) {
                     char buff[200];
                     getcwd(buff, sizeof buff);
                     printf("%s\n", buff);
                 }
+                // Commande avec redirection ">"
                 else if (chevron_flag != -1) {
-                    int oldstdout = dup(STDOUT_FILENO);
-                    int fd = open(argv_execv[chevron_flag+1], O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRGRP | S_IROTH);
-                    dup2(fd, STDOUT_FILENO);
-                    close (fd);
-                    argv_execv[chevron_flag] = NULL;
-                    if (fork() == 0) {
-                        if (execvp(argv_execv[0], argv_execv) == -1) perror("Erreur lors du execv");
-                        exit(0);
-                    }
-                    wait(NULL);
-                    dup2(oldstdout, STDOUT_FILENO);                                        
+                    redirection(argv_execv, chevron_flag);                               
                 }
-                // Présence d'un pipe
+                // Commande avec pipe "|"
                 else if (pipe_flag != -1) {
-                    int pipefd[2];
-
-                    // Create a pipe
-                    if (pipe(pipefd) == -1) {
-                        perror("pipe");
-                        exit(EXIT_FAILURE);
-                    }
-
-                    // Fork le premier processus
-                    if (fork() == 0) {
-                        close(pipefd[0]);   // Ferme lecture
-
-                        //STDOUT -> pipefd[1]
-                        if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
-                            perror("Erreur durant dup2");
-                            exit(EXIT_FAILURE);
+                    pipe_fct(argv_execv, pipe_flag); 
+                }
+                else if (sc_flag != -1) {
+                    deleteTarget(argv_execv, sc_flag, ";");
+                    argv_execv[sc_flag] = NULL;
+                    execvp_fct(argv_execv, 0);
+                    char **argv_execv_tempo = argv_execv + sc_flag + 1;
+                    i -= sc_flag +1;
+                    do {
+                        sc_flag = test_caractere(argv_execv_tempo, i-1, ";");
+                        if (sc_flag != -1) {
+                            deleteTarget(argv_execv_tempo, sc_flag, ";");
+                            argv_execv_tempo[sc_flag] = NULL;
+                            execvp_fct(argv_execv_tempo, 0);
+                            argv_execv_tempo = argv_execv_tempo + sc_flag + 1;
+                            i -= 1 + sc_flag;
                         }
-
-                        argv_execv[pipe_flag] = NULL;
-                        if (execvp(argv_execv[0], argv_execv) == 1) {  // Premiere fonction
-                            perror("Erreur durant execvp");
-                            exit(EXIT_FAILURE);
-                        }
-
-                        perror("Erreur durant execvp");
-                        exit(EXIT_FAILURE);
-                    }
-                    dup2(oldstdout, STDOUT_FILENO);     // redirection de la sortie vers stdout
-                    wait(NULL);     // Wait premier enfant
-
-                    // Fork le second processus
-                    if (fork() == 0) {
-                        
-                        close(pipefd[1]);   // Ferme ecriture
-
-                        //STDIN -> pipefd[0]
-                         if (dup2(pipefd[0], STDIN_FILENO) == -1) {
-                            perror("Erreur durant dup2");
-                            exit(EXIT_FAILURE);
-                        }
-                        close(pipefd[0]);
-                        
-                        char **argv_after_pipe = argv_execv + pipe_flag + 1;    // Nouveau tableau qui commence après le pipe
-
-                        if (execvp(argv_after_pipe[0], argv_after_pipe) == -1) {    // Deuxième fonction
-                            perror("Erreur durant execvp");
-                            exit(EXIT_FAILURE);
-                        }
-                        
-                        exit(0);
-                    }
-                    close(pipefd[1]);
-                    dup2(oldstdin, STDIN_FILENO);   // redirection de l'entrée vers stdin
-                    wait(NULL);     // Wait second enfant
+                    }while (sc_flag != -1);
+                    argv_execv_tempo[sc_flag] = NULL;
+                    execvp_fct(argv_execv_tempo, 0);
                 }
             }
         }
